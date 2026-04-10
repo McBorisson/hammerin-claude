@@ -25,15 +25,26 @@ Il principio fondamentale: **Opus ragiona, Sonnet scrive**. Mai invertire.
 
 Prima di posare qualsiasi cosa, studia il terreno. Questa fase e' SEMPRE inline, mai delegata.
 
-### Sopralluogo leggero (sempre)
+### Sopralluogo adattivo (sempre)
 
-Leggi il minimo indispensabile per capire il peso del task:
+Leggi il minimo indispensabile per capire il peso del task, ma adatta la profondita'
+al terreno che trovi:
 
 1. Leggi la memoria del progetto: `/root/.claude/projects/-root/memory/MEMORY.md`
 2. Leggi l'**entrypoint** del progetto (server.js, app.ts, ecc.) per capire la struttura
-3. Leggi **1 file pattern** — il file piu' simile a cio' che devi creare/modificare (es. una route CRUD esistente, un componente simile). Questo basta per capire le convenzioni.
+3. Leggi **1 file pattern** — il file piu' simile a cio' che devi creare/modificare (es. una route CRUD esistente, un componente simile).
 
-NON leggere tutti i file coinvolti in questa fase. Il sopralluogo leggero serve solo a decidere
+**Check di confidenza** — dopo il file pattern, chiediti:
+- Il pattern copre il dominio del task? (es. se devi fare auth e hai letto una route CRUD, no)
+- Le convenzioni sono chiare? (naming, struttura file, pattern di import)
+- Riesci a stimare il volume con ragionevole sicurezza?
+
+Se la risposta a una di queste e' **no**, leggi **1 file aggiuntivo** in un dominio diverso.
+Tetto massimo: **3 file** nel sopralluogo (entrypoint + 2 pattern). Se dopo 3 file non hai
+abbastanza contesto, il codebase e' eterogeneo — segnalalo nella valutazione e parti con
+"inline con possibile escalation" per ridurre il rischio di stima sbagliata.
+
+NON leggere tutti i file coinvolti in questa fase. Il sopralluogo serve solo a decidere
 la strategia. I file dettagliati li leggerai quando lavori (inline) o li fara' leggere Opus
 ai Sonnet (squadra).
 
@@ -95,6 +106,8 @@ inizia con una squadra piccola e chiama rinforzi solo quando scopre che il terre
 > **Sopralluogo completato** — volume incerto, parto inline dalle fondamenta. Rivaluto dopo lo strato 2.
 
 > **Sopralluogo completato** — ~300 righe, 4 domini. Chiamo la squadra, 3 strati di costruzione.
+
+> **Sopralluogo completato** — codebase eterogeneo (letto 3 file, pattern non uniformi). Parto inline con escalation — riduco il rischio di stima sbagliata.
 
 ---
 
@@ -263,7 +276,7 @@ Comunica all'utente cosa hai costruito:
 
 1. Non riprogettare il palazzo da zero
 2. Rilancia lo stesso agente con il **blocco originale** + cosa era gia' fatto
-3. Se rate limit: aspetta il reset e riprova — non bypassare il metodo
+3. Se rate limit: vedi sezione **Degradazione Gracile** — riduci parallelismo e riprova
 
 ### Contratto violato
 
@@ -277,6 +290,39 @@ Comunica all'utente cosa hai costruito:
 2. Correggi inline se e' un fix sotto 5 righe
 3. Rilancia agente correttivo se serve piu' lavoro
 4. Ricollada dopo ogni fix
+
+---
+
+## Degradazione Gracile
+
+Il metodo funziona al meglio con Opus (progetto) + Sonnet (costruzione), ma deve funzionare
+anche quando le condizioni non sono ideali. Non fallire — adattati.
+
+### Opus non disponibile (per agente Plan)
+
+Se non riesci a lanciare un agente Plan con Opus (rate limit, errore, non disponibile):
+- **Non bloccarti.** Tu stai gia' girando come Opus nel thread principale.
+- Fai la progettazione inline: leggi i file necessari, scrivi il piano degli strati con i
+  contratti esatti, poi lancia i Sonnet direttamente con quel piano.
+- Il risultato e' equivalente — perdi solo la separazione del contesto di pianificazione.
+
+### Sonnet rate-limited
+
+Se un agente Sonnet fallisce per rate limit:
+1. **Riduci il parallelismo**: se avevi 3 agenti nello stesso strato, rilanciane 2 alla volta
+2. **Aspetta e riprova**: attendi 60 secondi, poi rilancia l'agente fallito con lo stesso blocco
+3. **Non cambiare il piano**: il rate limit e' temporaneo, il piano resta valido
+
+### Entrambi i modelli limitati
+
+Se sia Opus che Sonnet sono limitati:
+- Passa a **modalita' full inline** — lavori tu da solo, strato per strato, con i checkpoint
+- Il metodo Costruttore funziona anche senza sub-agenti: gli strati, le verifiche, e i
+  contratti sono gli stessi. Cambia solo chi esegue il lavoro.
+- Comunica all'utente: "Modelli sub-agente limitati, procedo inline con il metodo a strati."
+
+Il principio: il metodo e' la struttura a strati con verifica, non la presenza di sub-agenti.
+I sub-agenti sono un'ottimizzazione di velocita', non un requisito.
 
 ---
 
