@@ -21,6 +21,125 @@ Il principio fondamentale: **Opus ragiona, Sonnet scrive**. Mai invertire.
 
 ---
 
+## Visibilità Cantiere — Regole Obbligatorie di Output
+
+L'utente NON vede cosa fanno i sub-agenti. Tutto il lavoro degli agenti è invisibile.
+Per questo, il thread principale (tu) DEVE comunicare in tempo reale cosa sta succedendo.
+Queste regole sono **non negoziabili** e si applicano a TUTTE le fasi.
+
+### 1. Task Tracking (barra di progresso nella CLI)
+
+All'inizio di ogni task, crea un TaskCreate per ogni fase prevista.
+L'utente vedrà una lista di task con stato (pending/in_progress/completed) nella CLI.
+
+```
+Esempio di task da creare all'avvio:
+- "Fase 1 — Sopralluogo terreno"
+- "Fase 2 — Fondamenta (schema DB, tipi)"
+- "Fase 3 — Struttura portante (API routes)"
+- "Fase 4 — Mura e impianti (frontend)"
+- "Fase 5 — Collaudo e consegna"
+```
+
+Usa `TaskUpdate` per marcare ogni task come `in_progress` quando inizi e `completed` quando finisci.
+Il campo `activeForm` deve descrivere cosa stai facendo in quel momento (es. "Creando tabella turni in database.js").
+
+### 2. Annunci di Fase (output testuale obbligatorio)
+
+Prima di ogni fase, stampa un blocco visivo nel terminale:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  FASE 1 — SOPRALLUOGO TERRENO
+  Progetto: /home/webportal/www/sudo-support-it/
+  Stack rilevato: Node.js + Express + SQLite
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+### 3. Report Pre-Agente (cosa sta per fare)
+
+PRIMA di lanciare ogni sub-agente, stampa:
+
+```
+--> Lancio Agente Sonnet: "Backend turni"
+    File assegnati: src/routes/turni.js, src/database.js
+    Contratto: GET/POST/PUT/DELETE /api/turni
+    Modalità: background
+```
+
+Se lanci più agenti in parallelo, elencali tutti:
+
+```
+--> Lancio parallelo (2 agenti):
+    [A] Agente Sonnet: "Frontend turni"
+        File: public/js/app.js (sezione turni)
+    [B] Agente Sonnet: "Auth turni"
+        File: src/auth.js (middleware permessi)
+```
+
+### 4. Report Post-Agente (cosa ha fatto)
+
+DOPO che ogni sub-agente completa il lavoro, stampa un riassunto:
+
+```
+<-- Agente "Backend turni" completato
+    File modificati: src/routes/turni.js (+85 righe), src/database.js (+12 righe)
+    Endpoint creati: GET /api/turni, POST /api/turni, PUT /api/turni/:id, DELETE /api/turni/:id
+    Stato: OK
+```
+
+Se un agente fallisce:
+
+```
+<-- Agente "Backend turni" FALLITO
+    Errore: rate limit Sonnet
+    Azione: attendo 60s e rilancio con parallelismo ridotto
+```
+
+### 5. Report di Verifica (dopo ogni strato)
+
+Dopo la verifica di ogni strato, stampa il risultato:
+
+```
+[VERIFICA] Strato 2 — Struttura portante
+    curl GET /api/turni → 200 OK (array vuoto)
+    curl POST /api/turni → 201 Created
+    curl PUT /api/turni/1 → 200 OK
+    curl DELETE /api/turni/1 → 200 OK
+    Risultato: PASS
+```
+
+### 6. Decisioni in Tempo Reale
+
+Ogni decisione di scaling deve essere comunicata:
+
+```
+[DECISIONE] Checkpoint strato 2 — rivalutazione peso
+    Lavoro completato: ~45 righe (fondamenta + struttura)
+    Lavoro restante: ~180 righe (frontend + auth + finiture)
+    Decisione: ESCALATION → chiamo squadra per strati 3-5
+    Motivo: 3 domini indipendenti, parallelizzabili
+```
+
+### 7. Progress Inline (per lavoro lungo senza agenti)
+
+Se lavori inline su uno strato che richiede più di 2 minuti, stampa aggiornamenti intermedi:
+
+```
+[PROGRESSO] Strato 3 — Frontend
+    Completato: sezione HTML turni in index.html
+    In corso: funzioni CRUD in app.js
+    Prossimo: integrazione con API backend
+```
+
+### Regola d'oro della visibilità
+
+**Se l'utente non vede output per più di 30 secondi, stai sbagliando.**
+Ogni operazione significativa deve produrre almeno una riga di output.
+L'utente deve poter seguire il flusso di lavoro come se guardasse un cantiere dal balcone.
+
+---
+
 ## Fase 0 — Ripresa Cantiere (checkpoint cross-sessione)
 
 Prima di qualsiasi sopralluogo, controlla se esiste un cantiere interrotto.
@@ -57,6 +176,15 @@ Il file `.hammerin-checkpoint.json` ha questa struttura:
   "started_at": "2026-04-11T10:30:00Z",
   "updated_at": "2026-04-11T11:15:00Z",
   "mode": "inline|squadra",
+  "budget": {
+    "preventivo_scelto": "B — BILANCIATO",
+    "fasi": [
+      { "nome": "Backend", "input_max": 80000, "output_max": 30000 },
+      { "nome": "Frontend + Collaudo", "input_max": 70000, "output_max": 30000 }
+    ],
+    "totale_input_max": 150000,
+    "totale_output_max": 60000
+  },
   "current_layer": 2,
   "layers": {
     "1": {
@@ -152,6 +280,101 @@ Stima il **peso reale** del lavoro — non contare i file, pesa le modifiche:
 | **Domini** | Quanti strati indipendenti? (DB, API, auth, frontend, infra) |
 | **Rischio** | Puo' rompere funzionalita' esistenti? |
 
+### Guardrail di Budget — Preventivi
+
+Dopo la valutazione economica, **DEVI presentare preventivi all'utente e attendere il suo OK
+prima di toccare qualsiasi file**. Il sopralluogo serve a stimare, non a costruire.
+
+#### Come costruire i preventivi
+
+Genera almeno 2 preventivi (massimo 4), ordinati dal piu' economico al piu' completo.
+Ogni preventivo e' un modo diverso di affrontare lo stesso task, con trade-off espliciti
+tra costo (token) e qualita' del risultato.
+
+**Criteri per differenziare i preventivi:**
+
+| Leva | Basso costo | Alto costo |
+|------|-------------|------------|
+| **Modalita'** | Inline (tutto tu) | Squadra (Opus + Sonnet) |
+| **Sopralluogo** | Minimo (1 file pattern) | Approfondito (3 file + audit) |
+| **Strati** | Accorpati (DB+API insieme) | Separati con verifica ogni strato |
+| **Fasi** | Unica sessione | Fasi separate con checkpoint |
+| **Finiture** | Funzionale (no polish) | Completo (empty states, UX, loading) |
+| **Verifica** | Smoke test finale | Collaudo per strato |
+| **Agenti** | 0 (inline) | N agenti paralleli |
+
+#### Formato obbligatorio dei preventivi
+
+Presenta i preventivi come tabella comparativa, poi il dettaglio per fase di ognuno:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PREVENTIVI — [Nome Feature]
+  Progetto: /path/to/project/
+  Peso stimato: ~N righe, M domini
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+┌─────────────┬──────────────┬──────────────┬──────────────┐
+│             │ Preventivo A │ Preventivo B │ Preventivo C │
+│             │  ECONOMICO   │  BILANCIATO  │  COMPLETO    │
+├─────────────┼──────────────┼──────────────┼──────────────┤
+│ Modalita'   │ Inline       │ Inline+escal.│ Squadra      │
+│ Fasi        │ 1 sessione   │ 2 fasi       │ 3 fasi       │
+│ Qualita'    │ Funzionale   │ Buona        │ Completa     │
+│ Finiture    │ No           │ Base         │ Full UX      │
+│ Verifica    │ Smoke test   │ Per fase     │ Per strato   │
+├─────────────┼──────────────┼──────────────┼──────────────┤
+│ Token input │ ~80K         │ ~150K        │ ~300K        │
+│ Token output│ ~30K         │ ~60K         │ ~120K        │
+│ Costo stim. │ ~€3-4        │ ~€8-10       │ ~€18-22      │
+└─────────────┴──────────────┴──────────────┴──────────────┘
+```
+
+#### Dettaglio per fase di ogni preventivo
+
+Dopo la tabella comparativa, dettaglia ogni preventivo con il breakdown per fase:
+
+```
+PREVENTIVO B — BILANCIATO
+  Fase 1: Backend (DB + API)
+    Token: ~80K input / ~30K output
+    Cosa include: migration, 6 endpoint CRUD, algoritmo
+    Cosa esclude: finiture UX
+    Verifica: curl su ogni endpoint
+
+  Fase 2: Frontend + Collaudo
+    Token: ~70K input / ~30K output
+    Cosa include: UI completa, integrazione API, test e2e
+    Cosa esclude: animazioni, loading states avanzati
+    Verifica: UI funzionante nel browser
+
+  Budget totale: ~150K input / ~60K output (~€8-10)
+```
+
+#### Regole sui preventivi
+
+1. **I token sono tetti massimi, non obiettivi** — se una fase ne richiede meno, usare solo
+   quelli necessari. Non gonfiare il lavoro per raggiungere la quota.
+2. **Il preventivo piu' economico deve essere sempre funzionante** — mai proporre un preventivo
+   che produce codice rotto. La differenza e' nelle finiture, non nella funzionalita'.
+3. **Sii onesto sulla qualita'** — se il preventivo economico taglia la verifica per strato,
+   dillo. Se il preventivo completo include polish che forse non serve, dillo.
+4. **Includi sempre il costo stimato in euro** — l'utente deve poter decidere in termini concreti.
+   Usa le tariffe API standard (Opus input ~$15/1M, output ~$75/1M; Sonnet input ~$3/1M, output ~$15/1M).
+5. **Non procedere senza OK** — dopo aver presentato i preventivi, fermati e chiedi:
+   "Quale preventivo scegli? Oppure vuoi un approccio diverso?"
+
+#### Dopo la scelta dell'utente
+
+Una volta che l'utente sceglie un preventivo:
+- Il budget di quel preventivo diventa il **guardrail** per tutta l'esecuzione
+- Il budget per fase e' il tetto massimo per quella fase — usare solo cio' che serve
+- Al checkpoint decisionale (dopo strato 2), verifica che il budget restante sia sufficiente.
+  Se non lo e', segnala all'utente prima di continuare:
+  > **Budget alert** — Fase 1 ha usato ~100K input (budget fase: ~80K). Il budget restante
+  > potrebbe non coprire la Fase 2. Vuoi continuare o rivalutare?
+- Il report di consegna (Fase 5) include il confronto budget previsto vs consumato
+
 ### Decisione: scala dinamica
 
 Non devi decidere tutto subito. La regola e': **inizia sempre inline, scala se serve**.
@@ -192,15 +415,20 @@ Se la risposta cambia, cambia strategia:
 La scala dinamica non e' un fallimento — e' adattamento intelligente. Come un cantiere che
 inizia con una squadra piccola e chiama rinforzi solo quando scopre che il terreno e' piu' duro.
 
-#### Comunica la decisione all'utente
+#### Comunica la decisione all'utente (con task tracking)
 
-> **Sopralluogo completato** — ~30 righe, replica pattern. Costruisco inline.
+Dopo che l'utente ha scelto il preventivo, crea i TaskCreate per tutte le fasi previste
+e stampa la conferma:
 
-> **Sopralluogo completato** — volume incerto, parto inline dalle fondamenta. Rivaluto dopo lo strato 2.
-
-> **Sopralluogo completato** — ~300 righe, 4 domini. Chiamo la squadra, 3 strati di costruzione.
-
-> **Sopralluogo completato** — codebase eterogeneo (letto 3 file, pattern non uniformi). Parto inline con escalation — riduco il rischio di stima sbagliata.
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  PREVENTIVO [X] CONFERMATO
+  Budget: ~150K input / ~60K output (~€8-10)
+  Fasi: 2 (Backend → Frontend+Collaudo)
+  Modalita': Inline con possibile escalation
+  Strati previsti: Fondamenta → Struttura → Mura → Collaudo
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
 
 ---
 
@@ -319,11 +547,27 @@ Tutti gli agenti dello stesso strato partono **nello stesso messaggio** con `run
 3. Istruzione: **leggere i file esistenti prima di modificarli**
 4. Istruzione: **non toccare file non assegnati**
 
+**VISIBILITÀ OBBLIGATORIA durante il lavoro con squadra:**
+
+Prima del lancio di ogni strato, stampa il banner dello strato (vedi Regola §2).
+Prima di ogni Agent(), stampa il report pre-agente (vedi Regola §3).
+Dopo che ogni agente ritorna, stampa il report post-agente (vedi Regola §4).
+Aggiorna il TaskUpdate del task corrispondente allo strato.
+
 **Tra uno strato e l'altro:**
-1. Verifica che i contratti esposti siano rispettati
-2. Se un agente ha deviato, correggi prima di salire
+1. Verifica che i contratti esposti siano rispettati — stampa il report di verifica (vedi Regola §5)
+2. Se un agente ha deviato, correggi prima di salire — comunica la correzione
 3. **SALVA CHECKPOINT** — aggiorna `.hammerin-checkpoint.json` con strato completato, file modificati, contratti reali
 4. Passa allo strato successivo con i contratti aggiornati dal codice reale
+5. Stampa un riepilogo intermedio:
+
+```
+[RIEPILOGO] Dopo strato 2:
+    File totali modificati: 3
+    Righe aggiunte: ~120
+    Strati completati: 2/4
+    Prossimo: Strato 3 — Mura e impianti
+```
 
 Questo e' il vantaggio della costruzione a strati: ogni piano si appoggia su fondamenta verificate.
 
@@ -373,11 +617,43 @@ Il palazzo e' completato e collaudato — rimuovi il cantiere:
 1. **Elimina** il file `.hammerin-checkpoint.json` dalla root del progetto
 2. Se avevi aggiunto `.hammerin-checkpoint.json` al `.gitignore`, lascialo — non da fastidio e previene commit accidentali futuri
 
-### Rapporto di consegna
+### Rapporto di consegna (output visivo obbligatorio)
 
-Comunica all'utente cosa hai costruito:
+Marca tutti i task come `completed` e stampa il report finale:
+
+```
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+  CONSEGNA COMPLETATA
+
+  Preventivo scelto:    B — BILANCIATO
+  Strati completati:    4/4
+  Modalità:             Squadra (Opus + 3 Sonnet)
+  Agenti utilizzati:    4
+  File modificati:      6
+  Righe aggiunte:       ~320
+
+  File toccati:
+    src/database.js        +12 righe (schema turni)
+    src/routes/turni.js    +85 righe (CRUD API)
+    src/auth.js            +8 righe (middleware permessi)
+    public/index.html      +45 righe (sezione turni HTML)
+    public/js/app.js       +150 righe (frontend turni)
+    public/css/styles.css  +20 righe (stili turni)
+
+  Budget:
+    Preventivo B:  ~150K input / ~60K output (~€8-10)
+    Consumato:     ~110K input / ~42K output (~€6)
+    Risparmio:     ~27% sotto budget
+
+  Verifica: http://localhost:3000 → sezione Turni
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+```
+
+Il report deve includere:
 - Quali strati sono stati completati
 - Quanti agenti sono stati usati (se squadra) o che hai lavorato inline
+- **Lista completa dei file modificati con righe aggiunte/modificate**
+- **Preventivo scelto e confronto budget previsto vs consumato** (con % risparmio se sotto budget)
 - Se il lavoro e' stato ripreso da un checkpoint precedente, menzionalo
 - Eventuali scelte fatte durante la costruzione
 - Come verificare di persona (URL, comando, sezione da aprire)
@@ -463,6 +739,8 @@ I sub-agenti sono un'ottimizzazione di velocita', non un requisito.
 
 ## Regole
 
+- **Preventivi prima di costruire** — presenta i preventivi dopo il sopralluogo e attendi OK dell'utente. Mai toccare file senza approvazione
+- **Budget e' un tetto, non un obiettivo** — se una fase costa meno del previsto, meglio. Non gonfiare il lavoro per riempire la quota
 - **Opus progetta, Sonnet costruisce** — mai invertire
 - **Leggere prima di scrivere** — sempre, a ogni strato
 - **File non sovrapposti** — mai assegnare lo stesso file a due agenti nello stesso strato

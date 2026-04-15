@@ -1,23 +1,143 @@
 {
-  "skill_name": "multi-agent-orchestrator",
+  "skill_name": "hammerin-claude",
   "evals": [
     {
       "id": 0,
-      "prompt": "Aggiungi un campo `note` alla tabella `turni` in sudo-support-it e mostralo nella UI della sezione Turni",
-      "expected_output": "Sizing S — lavora inline senza sub-agenti, modifica database.js e app.js, campo note visibile nella UI turni",
-      "files": []
+      "prompt": "Aggiungi un campo `note` alla tabella `turni` in sudo-support-it e mostralo nella UI della sezione Turni. Il progetto è in /home/webportal/www/sudo-support-it/, stack Node.js + Express + SQLite, entrypoint server.js.",
+      "expected_output": "Sizing S — lavora inline, modifica database.js e app.js. DEVE produrre: Riquadro A (intestazione fase), Riquadro E (decisione sopralluogo), Riquadro D (verifica), Riquadro F (consegna finale) con lista file modificati.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "panel-a-phase-header",
+          "description": "Output contiene almeno 1 Riquadro A (intestazione fase) con caratteri ╔═╗║╚═╝",
+          "type": "output_contains",
+          "check": "L'output deve contenere almeno un blocco con i caratteri Unicode ╔ ═ ╗ ║ ╚ ═ ╝ che forma un riquadro di intestazione fase"
+        },
+        {
+          "id": "panel-e-decision",
+          "description": "Output contiene Riquadro E (decisione sopralluogo) con caratteri ┊─┊",
+          "type": "output_contains",
+          "check": "L'output deve contenere almeno un blocco con i caratteri ┊ e ─ che forma un riquadro decisione/riepilogo"
+        },
+        {
+          "id": "panel-d-verification",
+          "description": "Output contiene Riquadro D (verifica strato) con risultato PASS/FAIL",
+          "type": "output_contains",
+          "check": "L'output deve contenere un riquadro di verifica con ╔══ VERIFICA e un risultato PASS o FAIL"
+        },
+        {
+          "id": "panel-f-delivery",
+          "description": "Output contiene Riquadro F (consegna finale) con lista file e righe",
+          "type": "output_contains",
+          "check": "L'output deve contenere un riquadro consegna finale con ╔═ CONSEGNA e una lista di file modificati con conteggio righe"
+        },
+        {
+          "id": "task-tracking",
+          "description": "Vengono creati TaskCreate per le fasi previste",
+          "type": "behavior",
+          "check": "Il modello deve creare almeno 2 TaskCreate e aggiornarli con TaskUpdate durante l'esecuzione"
+        },
+        {
+          "id": "no-silent-gaps",
+          "description": "Nessun gap di silenzio — output testuale tra ogni operazione",
+          "type": "behavior",
+          "check": "Tra ogni tool call e la successiva, deve esserci output testuale visibile all'utente"
+        }
+      ]
     },
     {
       "id": 1,
-      "prompt": "In spot-tracker aggiungi una sezione Manutenzione: endpoint CRUD per registrare interventi di manutenzione sui laptop, tab nel frontend con tabella, form di creazione, e filtro per laptop",
-      "expected_output": "Sizing M — Opus pianifica, 2 agenti Sonnet (backend + frontend), 1-2 wave, endpoint funzionanti e tab visibile",
-      "files": []
+      "prompt": "In spot-tracker aggiungi una sezione Manutenzione: endpoint CRUD per registrare interventi di manutenzione sui laptop, tab nel frontend con tabella, form di creazione, e filtro per laptop. Il progetto è in /home/webportal/www/spot-tracker/, stack Node.js + Express + SQLite, entrypoint server.js.",
+      "expected_output": "Sizing M — Opus pianifica, 2 agenti Sonnet. DEVE produrre: Riquadro A per ogni fase/strato, Riquadro B per ogni agente lanciato, Riquadro C per ogni agente completato, Riquadro D per verifiche, Riquadro E per decisioni, Riquadro F per consegna.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "panel-a-per-layer",
+          "description": "Riquadro A presente per ogni strato di costruzione (almeno 2 strati)",
+          "type": "output_contains",
+          "check": "L'output deve contenere almeno 2 riquadri ╔═ distinti che indicano strati diversi (es. FONDAMENTA, STRUTTURA, MURA)"
+        },
+        {
+          "id": "panel-b-agent-launch",
+          "description": "Riquadro B (lancio agente) presente con dettagli file e contratto",
+          "type": "output_contains",
+          "check": "L'output deve contenere almeno 1 riquadro ┌─ LANCIO AGENTE o ┌─ AGENTE con Nome, File assegnati, e Contratto"
+        },
+        {
+          "id": "panel-c-agent-result",
+          "description": "Riquadro C (risultato agente) presente con file modificati e stato",
+          "type": "output_contains",
+          "check": "L'output deve contenere almeno 1 riquadro ╭─ AGENTE COMPLETATO con lista file modificati e conteggio righe"
+        },
+        {
+          "id": "panel-d-verification",
+          "description": "Riquadro D (verifica) presente dopo ogni strato con PASS/FAIL",
+          "type": "output_contains",
+          "check": "L'output deve contenere almeno 1 riquadro ╔══ VERIFICA con risultato PASS o FAIL"
+        },
+        {
+          "id": "panel-e-summary",
+          "description": "Riquadro E (riepilogo) presente tra strati con conteggio file/righe",
+          "type": "output_contains",
+          "check": "L'output deve contenere almeno 1 riquadro ┊─ RIEPILOGO con file modificati e righe aggiunte"
+        },
+        {
+          "id": "panel-f-delivery",
+          "description": "Riquadro F (consegna) con report completo finale",
+          "type": "output_contains",
+          "check": "L'output deve contenere il riquadro ╔═ CONSEGNA COMPLETATA con strati completati, agenti utilizzati, e lista file"
+        },
+        {
+          "id": "all-6-panel-types",
+          "description": "Tutti e 6 i tipi di riquadro (A-F) appaiono almeno una volta",
+          "type": "output_contains",
+          "check": "Nell'output devono apparire tutti i 6 stili: ╔═╗ (A/D), ┌─┐ (B), ╭─╮ (C), ┊─┊ (E), ╔═╣╠═ (F)"
+        }
+      ]
     },
     {
       "id": 2,
-      "prompt": "In sudo-support-it aggiungi una sezione Inventario completa: tabella DB per oggetti inventario con categorie, CRUD API con middleware auth, import da CSV, tab frontend con griglia, ricerca, filtri per categoria, modal dettaglio, e export CSV",
-      "expected_output": "Sizing L — Opus pianifica, 3-4 agenti Sonnet in 2+ wave (DB+API prima, frontend+import dopo), contratti definiti, verifica post-integrazione",
-      "files": []
+      "prompt": "In sudo-support-it aggiungi una sezione Inventario completa: tabella DB per oggetti inventario con categorie, CRUD API con middleware auth, import da CSV, tab frontend con griglia, ricerca, filtri per categoria, modal dettaglio, e export CSV. Progetto in /home/webportal/www/sudo-support-it/, stack Node.js + Express + SQLite.",
+      "expected_output": "Sizing L — Opus pianifica, 3-4 agenti Sonnet in 2+ wave. DEVE produrre tutti i 6 riquadri, con riquadri B multipli per lancio parallelo e riquadri C multipli per risultati. Riquadro E deve mostrare escalation decision.",
+      "files": [],
+      "assertions": [
+        {
+          "id": "parallel-launch-panels",
+          "description": "Riquadri B multipli per lancio parallelo di agenti nello stesso strato",
+          "type": "output_contains",
+          "check": "L'output deve contenere la riga 'Lancio parallelo:' seguita da almeno 2 riquadri ┌─ AGENTE nello stesso strato"
+        },
+        {
+          "id": "multiple-result-panels",
+          "description": "Riquadri C multipli per risultati di agenti diversi",
+          "type": "output_contains",
+          "check": "L'output deve contenere almeno 2 riquadri ╭─ AGENTE COMPLETATO distinti con nomi agente diversi"
+        },
+        {
+          "id": "layer-progression-visible",
+          "description": "La progressione tra strati è visibile con riquadri A sequenziali",
+          "type": "output_contains",
+          "check": "L'output deve mostrare almeno 3 riquadri A (intestazione) per strati diversi in ordine (FONDAMENTA → STRUTTURA → MURA)"
+        },
+        {
+          "id": "verification-between-layers",
+          "description": "Riquadro D (verifica) appare tra ogni coppia di strati",
+          "type": "output_contains",
+          "check": "Tra ogni Riquadro A di uno strato e il Riquadro A dello strato successivo, deve esserci un Riquadro D di verifica"
+        },
+        {
+          "id": "file-count-in-delivery",
+          "description": "Il Riquadro F finale contiene conteggio preciso di file e righe",
+          "type": "output_contains",
+          "check": "Il riquadro consegna deve contenere 'File modificati' con un numero e una lista di file con +N righe per ciascuno"
+        },
+        {
+          "id": "task-tracking-complete",
+          "description": "Tutti i task vengono marcati completed alla fine",
+          "type": "behavior",
+          "check": "Alla fine dell'esecuzione, tutti i TaskCreate devono essere stati aggiornati a completed"
+        }
+      ]
     }
   ]
 }

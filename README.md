@@ -49,6 +49,10 @@ Works with any tech stack: React, Node.js, Laravel, Python, React Native, Docker
 
 ## The 5 Phases
 
+### Phase 0 — Site Resume (cross-session checkpoint)
+
+Before any survey, checks for an interrupted construction site. A `.hammerin-checkpoint.json` file tracks completed layers, modified files, real contracts between layers, mode (inline/crew), and the chosen budget. If found, the skill resumes exactly where it left off — no re-reading, no re-planning — even across different Claude Code sessions.
+
 ### Phase 1 — Site Survey
 
 Reads the minimum needed to understand the task weight:
@@ -59,6 +63,8 @@ Reads the minimum needed to understand the task weight:
 4. **(adaptive) 1-2 extra files** — only if the first pattern isn't enough
 
 After the first pattern, a **confidence check** evaluates whether the pattern covers the task domain, conventions are clear, and volume estimation is reliable. If not, reads up to 2 additional files (max 3 total). If the codebase remains opaque after 3 files, flags it and starts with "inline + escalation" to reduce estimation risk.
+
+**Budget Guardrails — Quotes.** At the end of the survey, the skill presents the user with **2–4 quotes** (Economic / Balanced / Complete), each with token ceilings, estimated euro cost, per-phase breakdown, and explicit trade-offs on quality, finishing, and verification depth. The skill does not touch any file until the user picks a quote. The chosen budget becomes the guardrail for the entire execution; at the checkpoint after layer 2, if a phase is at risk of exceeding its ceiling, the skill raises a **Budget alert** and asks before continuing.
 
 ### Phase 2 — Design & Foundation
 
@@ -96,6 +102,22 @@ The heart of the innovation. Instead of deciding upfront how many agents to use,
 Transitions can happen at any time. Start inline and discover the frontend is bigger than expected? Scale to the crew — foundations are already done. Start with a crew and Opus shows only 2 small blocks remain? Cancel and finish solo.
 
 **Dynamic scaling is not failure — it's intelligent adaptation.**
+
+---
+
+## Construction Site Visibility
+
+The user cannot see what sub-agents are doing — their work is invisible. The main thread is responsible for narrating the site in real time, with non-negotiable rules:
+
+- **Task tracking** — every phase becomes a `TaskCreate` entry so the user sees a live progress bar in the CLI
+- **Phase banners** — visual ASCII blocks announcing each phase before it starts
+- **Pre-agent reports** — before launching any sub-agent: name, assigned files, contract, mode (parallel/background)
+- **Post-agent reports** — after each sub-agent returns: files modified, lines added, endpoints created, status
+- **Verification reports** — after each layer: curl results, test outcomes, PASS/FAIL
+- **Scaling decisions** — any escalation/de-escalation explained with the reason
+- **Inline progress** — if a layer takes more than 2 minutes inline, intermediate updates
+
+> **Golden rule:** if the user sees no output for more than 30 seconds, something is wrong. Every significant operation must produce at least one line of output. The user should be able to follow the workflow like watching a construction site from the balcony.
 
 ---
 
