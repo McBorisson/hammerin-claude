@@ -49,9 +49,15 @@ Works with any tech stack: React, Node.js, Laravel, Python, React Native, Docker
 
 ## The 5 Phases
 
-### Phase 0 — Site Resume (cross-session checkpoint)
+### Phase 0 — Site Resume (centralized state markers)
 
-Before any survey, checks for an interrupted construction site. A `.hammerin-checkpoint.json` file tracks completed layers, modified files, real contracts between layers, mode (inline/crew), and the chosen budget. If found, the skill resumes exactly where it left off — no re-reading, no re-planning — even across different Claude Code sessions.
+Before any survey, checks for an interrupted construction site. Checkpoints are stored in a **centralized, protected folder** (`/home/webportal/.hammerin-state/`, chmod 700) — one JSON file per project (e.g., `sudo-support-it.json`). Each checkpoint tracks completed layers, modified files, real contracts between layers, mode (inline/crew), the chosen budget, and caveman mode flag. If found, the skill resumes exactly where it left off — no re-reading, no re-planning — even across different Claude Code sessions.
+
+**Advantages of centralized state:**
+- Survives `git clean`, repo reset, or re-cloning
+- Doesn't pollute project root or `.gitignore`
+- Single location to find all active construction sites
+- Protected from unauthorized access (chmod 700)
 
 ### Phase 1 — Site Survey
 
@@ -172,6 +178,41 @@ It will auto-trigger on all sessions and projects. No configuration needed.
 
 ---
 
+## Caveman Mode — Intelligent Output Compression
+
+Inspired by [Caveman](https://github.com/JuliusBrussee/caveman), Hammerin'Claude includes a built-in output compression mode that reduces output tokens by ~20-30% without affecting code quality or accuracy.
+
+### The Golden Rule
+
+> **Compress what the user reads, never what the system executes.**
+
+### What gets compressed (presentation layer)
+
+| Element | Standard | Caveman |
+|---------|----------|---------|
+| Phase banners | 4-line box art | `━━━ FASE 1 SOPRALLUOGO ━━━` + 1 info line |
+| Pre-agent reports | 4+ lines | `→ Sonnet "Backend": turni.js, database.js [bg]` |
+| Post-agent reports | 4+ lines | `← "Backend" OK: turni.js +85, database.js +12` |
+| Verification | 5+ lines | `[OK] Layer 2: 4/4 curl pass` |
+| Decisions | 5+ lines | `[SCALE] Post-layer 2: escalation, 3 domains` |
+| Prose | Full sentences | Telegraphic fragments, no filler |
+
+### What NEVER gets compressed (execution layer)
+
+- **Contracts** — exact function names, endpoints, DB columns, JSON shapes
+- **Sub-agent prompts** — full, unambiguous instructions to Sonnet agents
+- **Quotes & budget tables** — user must understand what they're buying
+- **Verification commands** — curl, npm, docker commands must be copy-paste exact
+- **Error messages & warnings** — clarity is critical when things break
+- **Checkpoint JSON** — already compact, machine-parseable
+- **Final delivery report** — the document the user keeps
+
+### Activation
+
+Caveman is **on by default**. Disable with: "verbose mode", "no caveman", "full output". The `caveman` flag in the checkpoint preserves the choice across sessions.
+
+---
+
 ## Rules
 
 - **Opus designs, Sonnet builds** — never reverse
@@ -182,6 +223,8 @@ It will auto-trigger on all sessions and projects. No configuration needed.
 - **Nothing generic** — exact names, not "create an appropriate function"
 - **Economic decision** — if agent cost exceeds work cost, go inline
 - **Stack-agnostic** — works with any stack
+- **Caveman compresses presentation, never execution** — contracts, agent prompts, quotes, and commands stay verbatim
+- **Centralized checkpoints** — all state in `/home/webportal/.hammerin-state/`, never in project root
 
 ---
 

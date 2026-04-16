@@ -144,38 +144,64 @@ L'utente deve poter seguire il flusso di lavoro come se guardasse un cantiere da
 
 Prima di qualsiasi sopralluogo, controlla se esiste un cantiere interrotto.
 
+### Cartella Stato Centralizzata
+
+Tutti i marker di stato vengono salvati in **`/home/webportal/.hammerin-state/`** (chmod 700, protetta).
+Ogni progetto ha il suo file checkpoint con nome derivato dal path del progetto:
+
+```
+/home/webportal/.hammerin-state/
+  sudo-support-it.json          ← checkpoint per sudo-support-it
+  webportalasset.json           ← checkpoint per asset portal
+  spot-tracker.json             ← checkpoint per spot tracker
+  sudo-codingteacher.json       ← checkpoint per coding teacher
+```
+
+**Convenzione nomi**: ultimo segmento del path del progetto, lowercase, trattini al posto di spazi.
+Esempio: `/home/webportal/www/sudo-support-it/` → `sudo-support-it.json`
+
+**Vantaggi rispetto al checkpoint in-project:**
+- Non inquina la root del progetto
+- Non serve toccare `.gitignore`
+- Sopravvive a `git clean`, reset, o riclonazione del repo
+- Un solo posto dove cercare tutti i cantieri attivi
+- Protetto da accessi non autorizzati (chmod 700)
+
 ### All'avvio di ogni task, SEMPRE:
 
-1. Cerca il file `.hammerin-checkpoint.json` nella **root del progetto** su cui stai lavorando
-2. Se **non esiste** → procedi normalmente con Fase 1
-3. Se **esiste** → leggi il checkpoint e riprendi da dove ti eri fermato
+1. Deriva il nome del file checkpoint dal path del progetto
+2. Cerca il file in `/home/webportal/.hammerin-state/{nome-progetto}.json`
+3. Se **non esiste** → procedi normalmente con Fase 1
+4. Se **esiste** → leggi il checkpoint e riprendi da dove ti eri fermato
 
 ### Logica di ripresa
 
 Quando trovi un checkpoint:
 
-1. **Leggi il file** `.hammerin-checkpoint.json`
+1. **Leggi il file** checkpoint dalla cartella stato
 2. **Verifica che il task corrisponda** — il campo `task_description` deve essere coerente con cio' che l'utente sta chiedendo ora. Se l'utente chiede un task diverso, ignora il checkpoint e parti da zero (ma non cancellarlo — chiedi all'utente se vuole abbandonare il cantiere precedente).
 3. **Verifica i file completati** — fai un check rapido che i file elencati in `files_modified` esistano e contengano le modifiche attese (leggi le prime righe, non tutto). Questo conferma che il lavoro precedente non e' stato annullato.
 4. **Riprendi dallo strato successivo** — se l'ultimo strato completato e' il 2, parti dallo strato 3. Non rileggere i file degli strati completati se non serve.
 5. **Comunica all'utente**:
 
-> **Cantiere interrotto trovato** — task: "{task_description}", ultimo strato completato: {current_layer} ({layer_name}). File verificati OK. Riprendo dallo strato {next_layer}.
+> Cantiere trovato — "{task_description}", strato {current_layer} ({layer_name}) OK. Riprendo da strato {next_layer}.
 
-> **Cantiere interrotto trovato** — task: "{task_description}", ma i file risultano modificati/assenti. Riparto dal sopralluogo.
+> Cantiere trovato — "{task_description}", file modificati/assenti. Riparto dal sopralluogo.
 
 ### Formato del file checkpoint
 
-Il file `.hammerin-checkpoint.json` ha questa struttura:
+Il file `{nome-progetto}.json` in `/home/webportal/.hammerin-state/` ha questa struttura:
 
 ```json
 {
-  "version": 1,
+  "version": 2,
   "project_path": "/path/to/project/",
+  "project_name": "sudo-support-it",
   "task_description": "Descrizione breve del task richiesto dall'utente",
   "started_at": "2026-04-11T10:30:00Z",
   "updated_at": "2026-04-11T11:15:00Z",
   "mode": "inline|squadra",
+  "caveman": true,
   "budget": {
     "preventivo_scelto": "B — BILANCIATO",
     "fasi": [
@@ -192,14 +218,14 @@ Il file `.hammerin-checkpoint.json` ha questa struttura:
       "status": "completato",
       "files_modified": ["src/database.js"],
       "contracts_summary": "tabella turni creata con colonne: id, name, date, shift_type, user_id",
-      "verification": "OK — tabella creata, query funzionano"
+      "verification": "OK"
     },
     "2": {
       "name": "STRUTTURA PORTANTE",
       "status": "completato",
       "files_modified": ["src/routes/turni.js"],
       "contracts_summary": "GET/POST/PUT/DELETE /api/turni — shape: {id, name, date, shift_type}",
-      "verification": "OK — curl 200 su tutti gli endpoint"
+      "verification": "OK"
     },
     "3": {
       "name": "MURA E IMPIANTI",
@@ -209,7 +235,7 @@ Il file `.hammerin-checkpoint.json` ha questa struttura:
       "verification": null
     }
   },
-  "plan_summary": "Breve sintesi del piano — strati previsti, modalita', decisioni chiave",
+  "plan_summary": "Sintesi piano — strati previsti, modalita', decisioni chiave",
   "decisions": [
     "Inline dopo sopralluogo — ~80 righe, 2 domini",
     "Confermato inline dopo strato 2 — volume come previsto"
@@ -226,6 +252,7 @@ Il file `.hammerin-checkpoint.json` ha questa struttura:
 - Sintesi contratti (non il codice completo — solo nomi endpoint, tabelle, shape)
 - Piano sintetico e decisioni prese
 - Prossima azione da eseguire
+- Flag `caveman` (per riprendere nella stessa modalita')
 
 **NON salvare:**
 - Contenuto dei file (e' gia' su disco)
@@ -236,9 +263,9 @@ Il file `.hammerin-checkpoint.json` ha questa struttura:
 
 - **Scrivi il checkpoint dopo ogni strato completato con verifica OK** — non prima
 - **Aggiorna `updated_at` ad ogni scrittura** per tracciare la freschezza
-- **Il checkpoint e' del progetto, non della sessione** — salvalo nella root del progetto, non in /tmp
+- **Salva in `/home/webportal/.hammerin-state/`** — mai nella root del progetto, mai in /tmp
 - **Un solo checkpoint per progetto alla volta** — se ne esiste uno vecchio, sovrascrivilo solo se lo stai aggiornando per lo stesso task
-- **Aggiungi `.hammerin-checkpoint.json` al `.gitignore` del progetto** se non e' gia' presente
+- **Alla consegna, elimina il checkpoint** dalla cartella stato
 
 ---
 
@@ -525,7 +552,7 @@ Procedi strato per strato dall'alto in basso:
 Ad ogni strato, **verifica prima di salire**. Se le fondamenta sono rotte, non costruire sopra.
 
 **Procedura salvataggio checkpoint dopo ogni strato:**
-1. Aggiorna il file `.hammerin-checkpoint.json` nella root del progetto
+1. Aggiorna il file in `/home/webportal/.hammerin-state/{nome-progetto}.json`
 2. Imposta lo strato appena completato come `"status": "completato"` con `verification` e `files_modified`
 3. Aggiorna `current_layer`, `updated_at`, `next_action`
 4. Se il prossimo strato ha file gia' noti, compilali in `files_to_modify`
@@ -614,8 +641,8 @@ Esegui la verifica appropriata al progetto:
 ### Pulizia checkpoint
 
 Il palazzo e' completato e collaudato — rimuovi il cantiere:
-1. **Elimina** il file `.hammerin-checkpoint.json` dalla root del progetto
-2. Se avevi aggiunto `.hammerin-checkpoint.json` al `.gitignore`, lascialo — non da fastidio e previene commit accidentali futuri
+1. **Elimina** il file `{nome-progetto}.json` da `/home/webportal/.hammerin-state/`
+2. La cartella stato resta — servira' per i prossimi cantieri
 
 ### Rapporto di consegna (output visivo obbligatorio)
 
@@ -737,6 +764,115 @@ I sub-agenti sono un'ottimizzazione di velocita', non un requisito.
 
 ---
 
+## Modalita' Caveman — Compressione Output Intelligente
+
+La modalita' Caveman riduce i token di output del ~20-30% comprimendo la comunicazione
+verso l'utente, **senza mai toccare cio' che il sistema esegue**.
+
+### Attivazione
+
+Caveman e' **attivo di default**. Si disattiva con: "modalita' verbosa", "no caveman", "output completo".
+Il flag `"caveman": true/false` nel checkpoint preserva la scelta tra sessioni.
+
+### Regola d'Oro della Compressione
+
+> **Comprimi cio' che l'utente legge, mai cio' che il sistema esegue.**
+
+Questa regola non ha eccezioni. Se hai dubbi su un elemento, NON comprimerlo.
+
+### Cosa SI comprime (layer di presentazione)
+
+| Elemento | Standard | Caveman |
+|----------|----------|---------|
+| Banner di fase | 4 righe con box art | `━━━ FASE 1 SOPRALLUOGO ━━━` + 1 riga info |
+| Report pre-agente | 4+ righe con dettagli | `→ Sonnet "Backend turni": turni.js, database.js [background]` |
+| Report post-agente | 4+ righe con riepilogo | `← "Backend turni" OK: turni.js +85, database.js +12` |
+| Report verifica | 5+ righe | `[OK] Strato 2: 4/4 curl pass` |
+| Decisioni | 5+ righe con box | `[SCALA] Strato 2→3: escalation, 3 domini paralleli` |
+| Progresso inline | 4 righe | `[...] Strato 3: HTML OK, CRUD in corso` |
+| Riepilogo intermedio | 5+ righe | `[2/4] 3 file, ~120 righe. Next: Strato 3` |
+| Testo accompagnamento | Frasi complete | Frammenti telegrafici, no filler |
+
+### Cosa NON si comprime MAI (layer di esecuzione)
+
+Questi elementi restano **verbatim, identici alla modalita' standard**, senza alcuna riduzione:
+
+1. **Contratti** — nomi esatti di funzioni, endpoint, colonne DB, shape JSON, tipi TypeScript.
+   `GET /api/turni/:id` resta `GET /api/turni/:id`, mai `GET turni by id`.
+
+2. **Prompt ai sub-agenti** — le istruzioni passate agli Agent() Sonnet restano complete.
+   Comprimere le istruzioni introduce ambiguita' che causa errori nei sub-agenti.
+   Il costo di un agente che sbaglia e va rilanciato supera sempre il risparmio della compressione.
+
+3. **Preventivi e tabelle budget** — l'utente decide come spendere. Tabella comparativa,
+   dettaglio per fase, costi in euro: tutto leggibile e completo.
+
+4. **Comandi di verifica** — curl, npm run build, docker compose, php artisan:
+   devono essere copia-incolla esatti.
+
+5. **Messaggi di errore e warning** — errori agente, budget alert, contratti violati:
+   la chiarezza e' critica quando qualcosa va storto.
+
+6. **Checkpoint JSON** — gia' compatti, strutturati, parsabili dalla macchina.
+
+7. **Report di consegna finale** — il report di Fase 5 resta completo. E' il documento
+   finale che l'utente conserva. Include tutti i dettagli: file, righe, budget, verifica.
+
+### Formato compresso dei report
+
+#### Banner di fase (caveman)
+```
+━━━ FASE 1 SOPRALLUOGO ━━━
+→ sudo-support-it | Node+Express+SQLite
+```
+
+#### Pre-agente (caveman)
+```
+→ Sonnet "Backend turni": turni.js, database.js [background]
+→ Sonnet "Auth turni": auth.js [background]
+```
+
+Lancio parallelo:
+```
+→ Parallelo (2):
+  [A] "Frontend turni": app.js
+  [B] "Auth turni": auth.js
+```
+
+#### Post-agente (caveman)
+```
+← "Backend turni" OK: turni.js +85, database.js +12 | 4 endpoint CRUD
+```
+
+Fallimento:
+```
+← "Backend turni" FAIL: rate limit → retry 60s, parallelismo ridotto
+```
+
+#### Verifica (caveman)
+```
+[OK] Strato 2 — GET 200, POST 201, PUT 200, DEL 200
+```
+
+#### Decisione (caveman)
+```
+[SCALA] Post-strato 2: ~180 righe restanti, 3 domini → chiamo squadra
+```
+
+#### Riepilogo intermedio (caveman)
+```
+[2/4] 3 file, ~120 righe. Next: Strato 3 mura
+```
+
+### Disattivazione
+
+Se l'utente chiede "modalita' verbosa" o "output completo":
+- Torna ai report standard (box art completi, frasi complete)
+- Aggiorna il flag `caveman` nel checkpoint a `false`
+- Conferma: "Caveman off — output completo attivo"
+
+---
+
 ## Regole
 
 - **Preventivi prima di costruire** — presenta i preventivi dopo il sopralluogo e attendi OK dell'utente. Mai toccare file senza approvazione
@@ -746,9 +882,11 @@ I sub-agenti sono un'ottimizzazione di velocita', non un requisito.
 - **File non sovrapposti** — mai assegnare lo stesso file a due agenti nello stesso strato
 - **Contratti da Opus** — nomi funzioni, endpoint, tipi li decide l'architetto
 - **Verificare prima di salire** — non costruire strato 2 senza aver collaudato strato 1
-- **Salvare checkpoint dopo ogni strato verificato** — il lavoro sopravvive alle interruzioni
+- **Salvare checkpoint dopo ogni strato verificato** — in `/home/webportal/.hammerin-state/`
 - **Controllare checkpoint all'avvio** — Fase 0 prima di Fase 1, sempre
-- **Pulire checkpoint alla consegna** — cantiere finito = checkpoint eliminato
+- **Pulire checkpoint alla consegna** — cantiere finito = checkpoint eliminato dalla cartella stato
 - **Niente generico** — nomi esatti, non "crea una funzione appropriata"
 - **Decisione economica** — se il costo degli agenti supera il costo del lavoro, fai inline
 - **Stack-agnostico** — funziona con qualsiasi stack: React, Node.js, Laravel, React Native, Python
+- **Caveman comprime la presentazione, mai l'esecuzione** — contratti, prompt agenti, preventivi e comandi restano verbatim
+- **Checkpoint centralizzati** — tutti in `/home/webportal/.hammerin-state/`, mai nella root del progetto
