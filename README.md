@@ -86,14 +86,19 @@ Foundations are what everything rests on: DB schema, types, interfaces, contract
 
 Proceeds layer by layer, bottom to top. Within a layer, independent agents work in parallel. Between layers, verification before ascending.
 
-**Checkpoint after layer 2:** if remaining volume has grown, scale to the crew. If it has shrunk, cancel the crew and finish inline. Zero wasted work — foundations and structure are already done.
+**Checkpoint after layer 2:** if remaining volume has grown, scale to the crew. If it has shrunk, cancel the crew and finish inline.
+
+> **Note:** Benchmarks verify that plans correctly describe layer-by-layer construction with checkpoints. Actual multi-agent execution (launching real Sonnet sub-agents) has not been benchmarked yet.
 
 ### Phase 4 — Inspection
 
-- **Structural verification** — functional tests: server started, endpoints respond, build compiles
-- **Systems verification** — auth, logging, validation work correctly
-- **Interior verification** — UI visible, empty states, loading states, role-based permissions
-- **Regression check** — existing features are not broken
+The skill instructs verification appropriate to the stack:
+- **Structural** — server started, endpoints respond, build compiles
+- **Systems** — auth, logging, validation
+- **UI** — features visible, empty states, permissions
+- **Regression** — existing features not broken
+
+> **Note:** Verification commands (curl, npm run build) appear in plan outputs. Actual execution of these commands in a live benchmark has not been tested.
 
 ### Phase 5 — Delivery
 
@@ -103,7 +108,7 @@ Report to the user: completed layers, agents used, decisions made during constru
 
 ## Dynamic Scaling
 
-The heart of the innovation. Instead of deciding upfront how many agents to use, the skill always starts at the lightest level and scales only if necessary.
+Instead of deciding upfront how many agents to use, the skill instructs the model to start at the lightest level and scale only if necessary.
 
 | Mode | When | Example |
 |------|------|---------|
@@ -111,36 +116,38 @@ The heart of the innovation. Instead of deciding upfront how many agents to use,
 | **Inline + escalation** | Uncertain volume, might grow | New section with partially new logic |
 | **Direct crew** | Full feature, 3+ domains, new logic | Complete CRUD + auth + import/export |
 
-Transitions can happen at any time. Start inline and discover the frontend is bigger than expected? Scale to the crew — foundations are already done. Start with a crew and Opus shows only 2 small blocks remain? Cancel and finish solo.
-
-**Dynamic scaling is not failure — it's intelligent adaptation.**
+**Verified:** Sizing S tasks correctly produce inline plans. Sizing M/L tasks correctly produce multi-agent plans with crew allocation. **Not yet verified:** actual mid-execution transitions (e.g., starting inline then scaling to crew after layer 2).
 
 ---
 
 ## Construction Site Visibility
 
-The user cannot see what sub-agents are doing — their work is invisible. The main thread is responsible for narrating the site in real time, with non-negotiable rules:
+The skill instructs the main thread to narrate the construction site so the user can follow progress.
 
-- **Task tracking** — every phase becomes a `TaskCreate` entry so the user sees a live progress bar in the CLI
-- **Phase banners** — visual ASCII blocks announcing each phase before it starts
-- **Pre-agent reports** — before launching any sub-agent: name, assigned files, contract, mode (parallel/background)
-- **Post-agent reports** — after each sub-agent returns: files modified, lines added, endpoints created, status
-- **Verification reports** — after each layer: curl results, test outcomes, PASS/FAIL
-- **Scaling decisions** — any escalation/de-escalation explained with the reason
-- **Inline progress** — if a layer takes more than 2 minutes inline, intermediate updates
+**Verified in benchmarks (plan-only evals):**
+- **Phase banners** — `━━━ FASE N NOME ━━━` consistently produced in all outputs
+- **Budget quotes** — 2-3 option table with token/€ estimates before any work
+- **Delivery report** — structured CONSEGNA block with files, lines, budget comparison
+- **Verification markers** — `[OK] Strato N — detail` between layers
 
-> **Golden rule:** if the user sees no output for more than 30 seconds, something is wrong. Every significant operation must produce at least one line of output. The user should be able to follow the workflow like watching a construction site from the balcony.
+**Instructed but not yet verified in live execution:**
+- **Task tracking** — the skill instructs `TaskCreate` per phase, but benchmarks were plan-only (no real tool calls). Likely works in real execution but unconfirmed.
+- **Pre/post agent reports** — `→`/`←` format defined, but no benchmark has launched real sub-agents yet.
+- **Inline progress updates** — instructed for layers taking >2 minutes, untested.
+- **Scaling decisions** — `[SCALE]` format defined, no benchmark has triggered a real scale transition.
+
+> Benchmarks to date test plan quality, not live execution. A live benchmark on a real M/L task would verify these features.
 
 ---
 
 ## Graceful Degradation
 
-The method works best with Opus (design) + Sonnet (build), but must work even when conditions aren't ideal.
+The skill instructs fallback behavior for degraded conditions. These fallbacks are defined in SKILL.md but **have not been tested in benchmarks** — no eval has simulated rate limits or model unavailability.
 
-| Scenario | Fallback |
-|----------|----------|
+| Scenario | Instructed fallback |
+|----------|---------------------|
 | **Opus unavailable** | Plan inline in the main thread (already running on Opus) |
-| **Sonnet rate-limited** | Reduce parallelism (3→2 agents), wait 60s, retry |
+| **Sonnet rate-limited** | Reduce parallelism, wait 60s, retry |
 | **Both limited** | Full inline mode — same layers, same verifications, main thread executes |
 
 **Principle:** the Constructor Method is the layered structure with verification, not the presence of sub-agents. Sub-agents are a speed optimization, not a requirement.
