@@ -101,9 +101,10 @@ file toccati, strati completati, gate falliti/risolti.
 
 ## Cosa è verificato vs cosa è istruito
 
-**Principio di onestà:** la skill è un set di istruzioni che Claude legge e
-prova a seguire. Non c'è un runtime esterno che forza il rispetto delle regole.
-Qui sotto cosa significa in pratica:
+**Principio di onestà:** la skill base è un set di istruzioni che Claude legge
+e prova a seguire. Il livello 1 di enforcement (hook opzionale) trasforma
+alcune di queste istruzioni in vincoli runtime *veri*. Qui sotto cosa
+significa in pratica:
 
 ### ✅ Reale — la skill può fare questo
 
@@ -115,23 +116,41 @@ Qui sotto cosa significa in pratica:
 - Task tracking con TaskCreate/TaskUpdate
 - Ripresa cross-sessione via checkpoint su disco
 
-### ⚠️ Istruito ma non enforced — dipende dalla disciplina di Claude
+### ✅ Enforced a runtime — se installi il hook livello 1
 
-- **Token cap per agente** è un'istruzione nel workorder, non un kill switch
+Con `hooks/hammerin-allowlist-check.sh` attivo in `settings.json`:
+
+- **Allowlist/denylist file** — il runtime rifiuta ogni Edit/Write/MultiEdit/
+  NotebookEdit su file fuori dall'allowlist dell'`active_agent`. Non è più
+  disciplina: è exit code 1 dal hook, il tool call non parte
+- **Toggle d'emergenza** `HAMMERIN_ENFORCE=0` per disabilitare al volo
+- **Log eventi** in `/home/webportal/.hammerin-state/enforcement.log`
+
+Vedi `references/enforcement-hook.md` per protocollo e limiti.
+
+### ⚠️ Istruito ma non enforced — dipende ancora dalla disciplina di Claude
+
+- **Token cap per agente** è un numero nel workorder, non un kill switch
+  (richiederebbe livello 3: wrapper Agent SDK)
 - **Gate blocca strato N+1** è una regola procedurale, non un controllo runtime
-- **Allowlist/denylist file** è un vincolo testuale, non un filesystem permission
+  (richiederebbe livello 2: validator esterno che gira tra strati)
 - **Regola minima necessità** è una policy, Claude deve scegliere di rispettarla
 - **Riadattamento dinamico** è descritto come flusso, non come macchina a stati
+- **Contratto rispettato** (nomi funzioni/endpoint) è check inline di Opus,
+  non validatore indipendente
 
 ### ❌ Non promesso
 
 - Garanzia matematica di zero errori
 - Rollback automatico (Claude deve farlo a mano con git)
-- Validatore esterno che rifiuta output di un agente non-conforme
-- Kill switch automatico al superamento del budget
+- Validatore automatico dei contratti (nomi esatti — serve livello 2)
+- Kill switch automatico al superamento del budget (serve livello 3)
 
-Per avere *enforcement* vero servono strumenti fuori dalla skill: hooks Claude Code,
-validator esterni, CI gates. Non sono in questa repo.
+### Roadmap enforcement
+
+- **Livello 1** (questo repo, `hooks/`): allowlist file enforced via PreToolUse hook — **FATTO**
+- **Livello 2** (futuro): validator esterno Python per check contratto + gate tra strati
+- **Livello 3** (futuro): wrapper sull'Agent SDK per enforcement 100% (token cap, rollback automatico)
 
 ---
 
